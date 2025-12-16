@@ -67,6 +67,18 @@ def get_datafolder_files() -> list[str]:
             file_list.append(f)
     return file_list
 
+def all_data_concat() ->DataFrame:
+    # 取得所有每年乘客資料檔案名稱
+    data_list:list[str] = get_datafolder_files()
+    all_years_data = []
+    for year_file in data_list:
+        year_DataFrame = merge_station_passenger_data(year_file)
+        all_years_data.append(year_DataFrame)
+
+    final_dataFrame = pd.concat(all_years_data, ignore_index=True)
+    final_dataFrame.sort_values(by=["乘車日期"],inplace=True)
+    return final_dataFrame
+
 def main():
     # 取得所有每年乘客資料檔案名稱
     data_list:list[str] = get_datafolder_files()
