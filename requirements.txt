@@ -4,3 +4,9 @@ numpy
 pandas
 matplotlib #數據轉為圖表的套件工具
 seaborn
+flask
+ipykernel
+jinja2
+openpyxl
+wget
+yfinance
