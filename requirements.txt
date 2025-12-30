@@ -13,3 +13,4 @@ yfinance
 gunicorn
 python-dotenv
 google-genai
+line-bot-sdk

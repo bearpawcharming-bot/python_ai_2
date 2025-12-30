@@ -1,16 +1,111 @@
-from flask import Flask 
-app = Flask(__name__)
+from flask import Flask,render_template_string,jsonify,request,abort
+from google import genai
+from dotenv import load_dotenv
+import os
+from linebot import LineBotApi, WebhookHandler
+from linebot.exceptions import InvalidSignatureError
+from linebot.models import *
 
-@app.route('/') 
-def hello(): 
-    return '<h1> 上傳成功 Hello, World! </h1>'
+load_dotenv()
+
+app = Flask(__name__)
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+line_bot_api = LineBotApi(os.environ['CHANNEL_ACCESS_TOKEN'])
+handler = WebhookHandler(os.environ['CHANNEL_SECRET'])
+
+@app.route('/')
+def index():
+    html='''
+<!DOCTYPE html>
+    <html lang="zh-TW">
+    <head>
+        <meta charset="UTF-8">
+        <title>Gemini 小助手 Chatbot</title>
+        <style>
+            body { font-family: Arial, sans-serif; background: #f5f5f5; }
+            .container { max-width: 500px; margin: 40px auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 8px #ccc; }
+            h1 { text-align: center; }
+            #result { min-height: 100px; background: #f0f0f0; margin-top: 20px; padding: 15px; border-radius: 5px; }
+            .btn { padding: 8px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
+            .btn-start { background: #4CAF50; color: #fff; }
+            .btn-clear { background: #f44336; color: #fff; }
+            #question { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Gemini 小助手 Chatbot</h1>
+            <input type="text" id="question" placeholder="請輸入您的問題..." />
+            <div>
+                <button class="btn btn-start" onclick="startChat()">開始</button>
+                <button class="btn btn-clear" onclick="clearAll()">清除</button>
+            </div>
+            <div id="result"></div>
+        </div>
+        <script>
+            function startChat() {
+                const q = document.getElementById('question').value.trim();
+                if (!q) { alert('請輸入問題'); return; }
+                document.getElementById('result').innerHTML = '請稍候...';
+                fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: q })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('result').innerHTML = data.html || data.text || '無回應';
+                })
+                .catch(() => {
+                    document.getElementById('result').innerHTML = '發生錯誤，請稍後再試';
+                });
+            }
+            function clearAll() {
+                document.getElementById('question').value = '';
+                document.getElementById('result').innerHTML = '';
+            }
+        </script>
+    </body>
+    </html>
+'''
+    return render_template_string(html)
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json()
+    question = data.get('question', '').strip()
+    if not question:
+        return jsonify({'error': '未輸入問題'}), 400
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", contents=f"{question},回應請輸出成為html格式"
+        )
+        html_format = response.text.replace("```html","").replace("```","")
+        return jsonify({'html': html_format})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@app.route("/callback", methods=['POST'])
+def callback():
+    signature = request.headers['X-Line-Signature']
+    body = request.get_data(as_text=True)
+    app.logger.info("Request body: " + body)
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    return 'OK'
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    
+    response = client.models.generate_content(
+    model="gemini-2.5-flash", contents=event.message.text
+    )
+    message = TextSendMessage(text=response.text)
+    line_bot_api.reply_message(event.reply_token, message)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-# 註冊 @app 有個實體方法叫 route 當有人訪問 / 時就會執行function 叫hello 
-# 回傳 hello world
-#<h1> </h1>是html的方式，h1為最大標題字
-# http:://127.0.01 代表本機的ip位置;
-# port 5000之類的數字代表不同的應用程式埠號 ;
-# 目前用8000的port服務
