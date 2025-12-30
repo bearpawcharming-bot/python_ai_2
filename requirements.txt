@@ -12,3 +12,4 @@ wget
 yfinance
 gunicorn
 python-dotenv
+google-genai
