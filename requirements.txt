@@ -11,3 +11,4 @@ openpyxl
 wget
 yfinance
 gunicorn
+python-dotenv
